@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import './App.css';
 
-const API = import.meta.env.VITE_API_URL;
+const API = "https://trail-optimizer.onrender.com";
 
 async function apiFetch(endpoint, options = {}) {
   try {
