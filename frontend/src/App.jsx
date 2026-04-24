@@ -175,22 +175,38 @@ function TheorySection() {
   );
 }
 
-function circleLayout(n, W = 900, H = 460) {
-  const cx = W / 2, cy = H / 2, r = Math.min(W, H) * 0.35;
-  return Array.from({ length: n }, (_, i) => ({
-    x: cx + r * Math.cos(2 * Math.PI * i / n - Math.PI / 2),
-    y: cy + r * Math.sin(2 * Math.PI * i / n - Math.PI / 2),
-  }));
-}
+
 
 function NetworkSection() {
   const [graph, setGraph] = useState(null);
+  const [size, setSize] = useState(6);
+  const [generating, setGenerating] = useState(false);
 
-  useEffect(() => {
+  const fetchGraph = () => {
     apiFetch('/graph').then(setGraph).catch(err => {
       console.error("Failed to load graph", err);
     });
+  };
+
+  useEffect(() => {
+    fetchGraph();
   }, []);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      await apiFetch('/generate-graph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ size })
+      });
+      fetchGraph();
+    } catch (e) {
+      console.error(e);
+      alert('Failed to generate graph');
+    }
+    setGenerating(false);
+  };
 
   if (!graph) {
     return (
@@ -199,32 +215,41 @@ function NetworkSection() {
       </Section>
     );
   }
-  const pos = circleLayout(graph.nodes.length);
-
   return (
     <Section title="TSP Network" subtitle={`Complete graph on ${graph.nodes.length} cities. Edge labels show distances L_ij.`}>
+      <div className="controls-row" style={{ marginBottom: 20, alignItems: 'center' }}>
+        <div className="control-group" style={{ flex: 'none', width: '220px', marginBottom: 0 }}>
+          <label style={{ marginBottom: 8 }}>Graph Size (Nodes) <strong>{size}</strong></label>
+          <input type="range" min="3" max="20" step="1" value={size} onChange={e => setSize(+e.target.value)} />
+        </div>
+        <button className="btn-sm" onClick={handleGenerate} disabled={generating} style={{ height: '36px' }}>
+          {generating ? <span className="spinner spinner-light" style={{ width: 14, height: 14, display: 'inline-block' }} /> : 'Generate New Graph'}
+        </button>
+      </div>
       <div className="graph-legend">
         <div className="legend-item"><span className="legend-dot" style={{ background: '#ffffff' }} /> City</div>
         <div className="legend-item"><span className="legend-dot" style={{ background: 'rgba(255,255,255,0.25)' }} /> Edge (distance labelled)</div>
       </div>
       <svg viewBox="0 0 900 460" width="100%" className="graph-canvas">
         {graph.edges.map((e, i) => {
-          const x1 = pos[e.source].x, y1 = pos[e.source].y;
-          const x2 = pos[e.target].x, y2 = pos[e.target].y;
+          const srcNode = graph.nodes[e.source];
+          const tgtNode = graph.nodes[e.target];
           return (
-            <g key={i}>
-              <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
-              <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 3} fontSize="11" fill="#6b7280" textAnchor="middle">{e.weight}</text>
+            <g key={i} className="edge-group">
+              <line x1={srcNode.x} y1={srcNode.y} x2={tgtNode.x} y2={tgtNode.y} stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
+              <text x={(srcNode.x + tgtNode.x) / 2} y={(srcNode.y + tgtNode.y) / 2 - 3} fontSize="11" fill="#6b7280" textAnchor="middle">{e.weight}</text>
             </g>
           );
         })}
-        {graph.nodes.map((n, i) => (
-          <g key={n.id}>
-            <circle cx={pos[i].x} cy={pos[i].y} r={22} fill="#ffffff" stroke="#ffffff" strokeWidth="2" />
-            <text x={pos[i].x} y={pos[i].y} fontSize="14" fill="#000" textAnchor="middle" dominantBaseline="middle" fontWeight="700">{n.label}</text>
-            <text x={pos[i].x} y={pos[i].y + 38} fontSize="11" fill="#a3a3a3" textAnchor="middle">id: {n.id}</text>
-          </g>
-        ))}
+        {graph.nodes.map((n) => {
+          return (
+            <g key={n.id} className="node-group" style={{ animationDelay: `${n.id * 30}ms` }}>
+              <circle cx={n.x} cy={n.y} r={22} fill="#ffffff" stroke="#ffffff" strokeWidth="2" />
+              <text x={n.x} y={n.y} fontSize="14" fill="#000" textAnchor="middle" dominantBaseline="middle" fontWeight="700">{n.label}</text>
+              <text x={n.x} y={n.y + 38} fontSize="11" fill="#a3a3a3" textAnchor="middle">id: {n.id}</text>
+            </g>
+          );
+        })}
       </svg>
     </Section>
   );

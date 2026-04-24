@@ -1,4 +1,4 @@
-import time, random
+import time, random, math
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,20 +14,11 @@ def read_root():
 
 random.seed(42)
 
-# 6-city symmetric TSP instance used by every tab
-N = 6
-LABELS = ["A", "B", "C", "D", "E", "F"]
-D = [
-    [ 0, 12, 10, 19,  8, 15],
-    [12,  0,  3,  7,  6, 11],
-    [10,  3,  0,  2, 20,  9],
-    [19,  7,  2,  0,  4, 13],
-    [ 8,  6, 20,  4,  0,  5],
-    [15, 11,  9, 13,  5,  0],
-]
+_cache = {}
 
 def nearest_neighbor_length(d, start=0):
     n = len(d)
+    if n == 0: return 0
     visited = [False] * n
     visited[start] = True
     cur = start
@@ -43,7 +34,26 @@ def nearest_neighbor_length(d, start=0):
     total += d[cur][start]
     return total
 
-L_NN = nearest_neighbor_length(D)
+N = 0
+LABELS = []
+COORDS = []
+D = []
+L_NN = 0
+
+def init_graph(n: int):
+    global N, LABELS, COORDS, D, L_NN, _cache
+    N = n
+    LABELS = [chr(65 + i) if i < 26 else f"N{i}" for i in range(n)]
+    COORDS = [(random.randint(50, 850), random.randint(50, 410)) for _ in range(n)]
+    D = [[0]*n for _ in range(n)]
+    for i in range(n):
+        for j in range(n):
+            if i != j:
+                D[i][j] = round(math.dist(COORDS[i], COORDS[j]))
+    L_NN = nearest_neighbor_length(D)
+    _cache.clear()
+
+init_graph(6)
 
 def heuristic():
     return [[1.0 / D[i][j] if i != j else 0.0 for j in range(N)] for i in range(N)]
@@ -159,7 +169,6 @@ def max_min_ant_system(alpha=1.0, beta=2.0, rho=0.5, m=10, iterations=50, seed=4
         "tau_max": round(tau_max, 6),
     }
 
-_cache = {}
 def cached_as():
     if "as" not in _cache:
         _cache["as"] = ant_system()
@@ -195,9 +204,18 @@ def run_as(req: ASReq):
 def run_mmas(req: MMASReq):
     return max_min_ant_system(req.alpha, req.beta, req.rho, req.m, req.iterations, req.seed)
 
+class GenerateReq(BaseModel):
+    size: int
+
+@app.post("/generate-graph")
+def generate_graph(req: GenerateReq):
+    n = max(3, min(req.size, 50))
+    init_graph(n)
+    return {"status": "ok", "n": N}
+
 @app.get("/graph")
 def graph():
-    nodes = [{"id": i, "label": LABELS[i]} for i in range(N)]
+    nodes = [{"id": i, "label": LABELS[i], "x": COORDS[i][0], "y": COORDS[i][1]} for i in range(N)]
     edges = []
     for i in range(N):
         for j in range(i + 1, N):
