@@ -2,18 +2,20 @@ import { useState, useEffect, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import './App.css';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+const API = import.meta.env.VITE_API_URL;
 
 async function apiFetch(endpoint, options = {}) {
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+    const response = await fetch(`${API}${endpoint}`, options);
     if (!response.ok) {
       throw new Error(`API Error: ${response.status} ${response.statusText}`);
     }
-    return await response.json();
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error(`Fetch error for ${endpoint}:`, error);
-    throw error;
+    // Standardize error message for UI
+    throw new Error("Failed to connect to backend. Please try again.");
   }
 }
 
@@ -203,7 +205,7 @@ function NetworkSection() {
       fetchGraph();
     } catch (e) {
       console.error(e);
-      alert('Failed to generate graph');
+      alert(e.message);
     }
     setGenerating(false);
   };
@@ -211,7 +213,7 @@ function NetworkSection() {
   if (!graph) {
     return (
       <Section title="TSP Network" subtitle="Loading graph from backend...">
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Make sure the backend is running on port 8000.</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Failed to load data from backend</div>
       </Section>
     );
   }
@@ -370,7 +372,7 @@ function SimulationSection() {
       setResult(data);
     } catch (e) { 
       console.error("Simulation failed", e);
-      alert("Simulation failed. Check console for details.");
+      alert(e.message);
     }
     setLoading(false);
   };
