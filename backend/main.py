@@ -8,6 +8,10 @@ app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True,
                    allow_methods=["*"], allow_headers=["*"])
 
+@app.get("/")
+def read_root():
+    return {"message": "Trail Optimizer API is running"}
+
 random.seed(42)
 
 # 6-city symmetric TSP instance used by every tab

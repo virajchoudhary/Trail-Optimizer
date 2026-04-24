@@ -2,7 +2,20 @@ import { useState, useEffect, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import './App.css';
 
-const API = 'http://127.0.0.1:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+
+async function apiFetch(endpoint, options = {}) {
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error(`Fetch error for ${endpoint}:`, error);
+    throw error;
+  }
+}
 
 function Section({ title, subtitle, children, id }) {
   return (
@@ -174,7 +187,9 @@ function NetworkSection() {
   const [graph, setGraph] = useState(null);
 
   useEffect(() => {
-    fetch(`${API}/graph`).then(r => r.json()).then(setGraph).catch(console.error);
+    apiFetch('/graph').then(setGraph).catch(err => {
+      console.error("Failed to load graph", err);
+    });
   }, []);
 
   if (!graph) {
@@ -229,7 +244,9 @@ function MatricesSection() {
 
   useEffect(() => {
     setData(null);
-    fetch(`${API}/matrix/${active}`).then(r => r.json()).then(setData).catch(console.error);
+    apiFetch(`/matrix/${active}`).then(setData).catch(err => {
+      console.error(`Failed to load matrix: ${active}`, err);
+    });
   }, [active]);
 
   let stats = { dims: '—', density: '—', trace: '—', max: '—' };
@@ -309,22 +326,27 @@ function SimulationSection() {
   const [labels, setLabels] = useState(['A', 'B', 'C', 'D', 'E', 'F']);
 
   useEffect(() => {
-    fetch(`${API}/graph`).then(r => r.json()).then(g => setLabels(g.nodes.map(n => n.label))).catch(() => {});
+    apiFetch('/graph').then(g => setLabels(g.nodes.map(n => n.label))).catch(() => {});
   }, []);
 
   const run = async () => {
     setLoading(true);
     try {
-      const url = algo === 'as' ? '/run-as' : '/run-mmas';
+      const endpoint = algo === 'as' ? '/run-as' : '/run-mmas';
       const body = algo === 'as'
         ? { alpha, beta, rho, Q, m, iterations: iters, seed: 42 }
         : { alpha, beta, rho, m, iterations: iters, seed: 42 };
-      const res = await fetch(`${API}${url}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      
+      const data = await apiFetch(endpoint, {
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      setResult(await res.json());
-    } catch (e) { console.error(e); }
+      setResult(data);
+    } catch (e) { 
+      console.error("Simulation failed", e);
+      alert("Simulation failed. Check console for details.");
+    }
     setLoading(false);
   };
 
@@ -423,7 +445,7 @@ function CompareSection() {
   const [labels, setLabels] = useState(['A', 'B', 'C', 'D', 'E', 'F']);
 
   useEffect(() => {
-    fetch(`${API}/graph`).then(r => r.json()).then(g => setLabels(g.nodes.map(n => n.label))).catch(() => {});
+    apiFetch('/graph').then(g => setLabels(g.nodes.map(n => n.label))).catch(() => {});
   }, []);
 
   const run = async () => {
@@ -431,11 +453,21 @@ function CompareSection() {
     const params = { alpha: 1, beta: 2, rho: 0.5, m: 10, iterations: 100, seed: 42 };
     try {
       const [as_, mmas_] = await Promise.all([
-        fetch(`${API}/run-as`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...params, Q: 1.0 }) }).then(r => r.json()),
-        fetch(`${API}/run-mmas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params) }).then(r => r.json()),
+        apiFetch('/run-as', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ ...params, Q: 1.0 }) 
+        }),
+        apiFetch('/run-mmas', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(params) 
+        }),
       ]);
       setData({ as: as_, mmas: mmas_ });
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+      console.error("Comparison failed", e);
+    }
     setLoading(false);
   };
 
@@ -540,6 +572,20 @@ function CompareSection() {
   );
 }
 
+function Footer() {
+  return (
+    <footer className="app-footer">
+      <span className="footer-copy">© Viraj Choudhary</span>
+      <div className="footer-links">
+        <a href="https://github.com/virajchoudhary" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://www.linkedin.com/in/virajchoudhary" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        <a href="https://x.com/virajchoudhary_" target="_blank" rel="noopener noreferrer">Twitter</a>
+        <a href="mailto:virajc188@gmail.com">Email</a>
+      </div>
+    </footer>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('theory');
   const tabs = [
@@ -571,6 +617,7 @@ export default function App() {
           <p>Ant Colony Optimization Engine for the Travelling Salesman Problem</p>
         </header>
         {content[activeTab]}
+        <Footer />
       </main>
     </div>
   );
